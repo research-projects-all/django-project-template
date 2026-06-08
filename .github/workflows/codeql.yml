@@ -1,4 +1,4 @@
-name: CodeQL
+name: "CodeQL Advanced"
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [ "master" ]
   schedule:
-    - cron: "39 2 * * 6"
+    - cron: '39 2 * * 6'
 
 jobs:
   analyze:
@@ -23,13 +23,38 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Prepare Python sources from template files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          scan_root="__codeql_python_source"
+          rm -rf "$scan_root"
+          mkdir -p "$scan_root"
+
+          while IFS= read -r -d '' file; do
+            target="$scan_root/${file#./}"
+            target="${target%-tpl}"
+            mkdir -p "$(dirname "$target")"
+            cp "$file" "$target"
+          done < <(find . \
+            -path './.git' -prune -o \
+            -path "./$scan_root" -prune -o \
+            -name '*.py-tpl' -type f -print0)
+
+          if ! find "$scan_root" -name '*.py' -type f | grep -q .; then
+            echo "No Python template files were found."
+            exit 1
+          fi
+
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
           languages: python
           build-mode: none
+          source-root: __codeql_python_source
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
         with:
-          category: "/language:python"
+          category: "/language:python-template"
